@@ -1092,6 +1092,7 @@
   "chatInputBarSelectModelTooltip": "Select Model",
   "chatInputBarOnlineSearchTooltip": "Online Search",
   "chatInputBarReasoningStrengthTooltip": "Reasoning Strength",
+  "chatInputBarMultiModelTooltip": "Multi-Model",
   "chatInputBarMcpServersTooltip": "MCP Servers",
   "chatInputBarMoreTooltip": "Add",
   "chatInputBarImageMode": "Image mode",
@@ -2378,5 +2379,29 @@
         "type": "int"
       }
     }
+  },
+  "multiModelLayoutHorizontal": "Side by side",
+  "multiModelLayoutVertical": "Stacked",
+  "multiModelLayoutGrid": "Grid",
+  "multiModelSelectorTitle": "Compare models",
+  "multiModelSelectorSearchHint": "Search models",
+  "multiModelSelectorNoModels": "No available models",
+  "multiModelSelectorClear": "Clear",
+  "multiModelSelectorSelectedCount": "{count} selected",
+  "@multiModelSelectorSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "multiModelResponseCount": "{count} model replies",
+  "@multiModelResponseCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
+
 }

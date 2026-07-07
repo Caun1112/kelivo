@@ -2543,6 +2543,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatInputBarReasoningStrengthTooltip => 'Reasoning Strength';
 
   @override
+  String get chatInputBarMultiModelTooltip => 'Multi-Model';
+
+  @override
   String get chatInputBarMcpServersTooltip => 'MCP Servers';
 
   @override
@@ -5536,5 +5539,36 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String debugPageManyMessagesSeedText(String role, int index) {
     return '$role message #$index: quick random debug sample for testing list rendering, scrolling stability, message grouping, and conversation history performance.';
+  }
+
+  @override
+  String get multiModelLayoutHorizontal => 'Side by side';
+
+  @override
+  String get multiModelLayoutVertical => 'Stacked';
+
+  @override
+  String get multiModelLayoutGrid => 'Grid';
+
+  @override
+  String get multiModelSelectorTitle => 'Compare models';
+
+  @override
+  String get multiModelSelectorSearchHint => 'Search models';
+
+  @override
+  String get multiModelSelectorNoModels => 'No available models';
+
+  @override
+  String get multiModelSelectorClear => 'Clear';
+
+  @override
+  String multiModelSelectorSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String multiModelResponseCount(int count) {
+    return '$count model replies';
   }
 }

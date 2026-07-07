@@ -191,6 +191,46 @@ class HomePageController extends ChangeNotifier {
   // Input bar measurement
   double _inputBarHeight = 72;
 
+  // 多模型目标列表属于输入草稿状态，发送成功后清空。
+  final List<ChatTargetModel> _targetModels = <ChatTargetModel>[];
+
+  List<ChatTargetModel> get targetModels => List.unmodifiable(_targetModels);
+
+  void setTargetModels(List<ChatTargetModel> models) {
+    _targetModels
+      ..clear()
+      ..addAll(models);
+    notifyListeners();
+  }
+
+  void clearTargetModels() {
+    if (_targetModels.isNotEmpty) {
+      _targetModels.clear();
+      notifyListeners();
+    }
+  }
+
+  Future<void> setMultiModelLayout(
+    List<ChatMessage> group,
+    String newLayout,
+  ) async {
+    final normalizedLayout = ChatMultiModelLayout.normalize(newLayout);
+    for (final msg in group) {
+      await _chatService.updateMessage(
+        msg.id,
+        multiModelLayout: normalizedLayout,
+      );
+      final idx = _chatController.messages.indexWhere((m) => m.id == msg.id);
+      if (idx >= 0) {
+        _chatController.messages[idx] = _chatController.messages[idx].copyWith(
+          multiModelLayout: normalizedLayout,
+        );
+      }
+    }
+    _chatController.invalidateCache();
+    notifyListeners();
+  }
+
   UserMessageEditState? _userMessageEditState;
 
   // Animation tuning
@@ -640,8 +680,16 @@ class HomePageController extends ChangeNotifier {
       await _createNewConversation();
     }
 
-    final result = await _viewModel.sendMessage(input);
+    final multiInput = ChatInputData(
+      text: input.text,
+      imagePaths: input.imagePaths,
+      documents: input.documents,
+      allowImagesApiRouting: input.allowImagesApiRouting,
+      targetModels: List<ChatTargetModel>.of(_targetModels),
+    );
+    final result = await _viewModel.sendMessage(multiInput);
     if (result != ChatInputSubmissionResult.rejected) {
+      clearTargetModels();
       notifyListeners();
     }
     return result;

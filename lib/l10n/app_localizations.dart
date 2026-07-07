@@ -4781,6 +4781,12 @@ abstract class AppLocalizations {
   /// **'Reasoning Strength'**
   String get chatInputBarReasoningStrengthTooltip;
 
+  /// No description provided for @chatInputBarMultiModelTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Multi-Model'**
+  String get chatInputBarMultiModelTooltip;
+
   /// No description provided for @chatInputBarMcpServersTooltip.
   ///
   /// In en, this message translates to:
@@ -10189,6 +10195,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{role} message #{index}: quick random debug sample for testing list rendering, scrolling stability, message grouping, and conversation history performance.'**
   String debugPageManyMessagesSeedText(String role, int index);
+
+  /// No description provided for @multiModelLayoutHorizontal.
+  ///
+  /// In en, this message translates to:
+  /// **'Side by side'**
+  String get multiModelLayoutHorizontal;
+
+  /// No description provided for @multiModelLayoutVertical.
+  ///
+  /// In en, this message translates to:
+  /// **'Stacked'**
+  String get multiModelLayoutVertical;
+
+  /// No description provided for @multiModelLayoutGrid.
+  ///
+  /// In en, this message translates to:
+  /// **'Grid'**
+  String get multiModelLayoutGrid;
+
+  /// No description provided for @multiModelSelectorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare models'**
+  String get multiModelSelectorTitle;
+
+  /// No description provided for @multiModelSelectorSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search models'**
+  String get multiModelSelectorSearchHint;
+
+  /// No description provided for @multiModelSelectorNoModels.
+  ///
+  /// In en, this message translates to:
+  /// **'No available models'**
+  String get multiModelSelectorNoModels;
+
+  /// No description provided for @multiModelSelectorClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get multiModelSelectorClear;
+
+  /// No description provided for @multiModelSelectorSelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String multiModelSelectorSelectedCount(int count);
+
+  /// No description provided for @multiModelResponseCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} model replies'**
+  String multiModelResponseCount(int count);
 }
 
 class _AppLocalizationsDelegate

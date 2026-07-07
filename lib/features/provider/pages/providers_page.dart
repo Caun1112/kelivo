@@ -94,15 +94,24 @@ class _ProvidersPageState extends State<ProvidersPage> {
     final l10n = AppLocalizations.of(context)!;
 
     // Base, fixed providers (recompute each build so dynamic additions reflect immediately)
-    final base = _providers(l10n: l10n);
+    final allBase = _providers(l10n: l10n);
+    final settings = context.watch<SettingsProvider>();
+    final base = [
+      for (final p in allBase)
+        if (settings.shouldShowProviderInSettingsList(
+          p.keyName,
+          defaultName: p.name,
+        ))
+          p,
+    ];
 
     // Dynamic providers from settings
-    final settings = context.watch<SettingsProvider>();
     final cfgs = settings.providerConfigs;
-    final baseKeys = {for (final p in base) p.keyName};
+    final baseKeys = {for (final p in allBase) p.keyName};
     final dynamicItems = <_Provider>[];
     cfgs.forEach((key, cfg) {
-      if (!baseKeys.contains(key)) {
+      if (!baseKeys.contains(key) &&
+          settings.shouldShowProviderInSettingsList(key)) {
         dynamicItems.add(
           _Provider(
             name: (cfg.name.isNotEmpty ? cfg.name : key),
@@ -641,16 +650,7 @@ class _ProvidersPageState extends State<ProvidersPage> {
     final l10n = AppLocalizations.of(context)!;
     final assistantProvider = context.read<AssistantProvider>();
     final settingsProvider = context.read<SettingsProvider>();
-    // Skip built-in providers (default ones)
-    final builtInKeys = {for (final p in _providers(l10n: l10n)) p.keyName};
-    final keysToDelete = _selected
-        .where((k) => !builtInKeys.contains(k))
-        .toList(growable: false);
-
-    if (keysToDelete.isEmpty) {
-      // Nothing deletable selected
-      return;
-    }
+    final keysToDelete = _selected.toList(growable: false);
 
     final confirmed = await showDialog<bool>(
       context: context,

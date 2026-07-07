@@ -184,74 +184,7 @@ class _ImagePreviewDesktopDialogState
   }
 
   Future<void> _onCopy() async {
-    // Prefer super_clipboard for robust cross-platform image copy
-    bool ok = false;
-    try {
-      final clipboard = SystemClipboard.instance;
-      if (clipboard != null) {
-        final path = widget.file.path;
-        final bytes = await File(path).readAsBytes();
-        if (bytes.isNotEmpty) {
-          final ext = p.extension(path).toLowerCase();
-          String format = 'png';
-          Uint8List outBytes = bytes;
-          if (ext == '.png') {
-            format = 'png';
-          } else if (ext == '.jpg' || ext == '.jpeg') {
-            format = 'jpeg';
-          } else if (ext == '.gif') {
-            format = 'gif';
-          } else if (ext == '.webp') {
-            format = 'webp';
-          } else {
-            // Convert unknown formats to PNG via image codec
-            try {
-              final codec = await ui.instantiateImageCodec(bytes);
-              final frame = await codec.getNextFrame();
-              final data = await frame.image.toByteData(
-                format: ui.ImageByteFormat.png,
-              );
-              if (data != null) {
-                outBytes = data.buffer.asUint8List();
-                format = 'png';
-              }
-            } catch (_) {}
-          }
-
-          // Build clipboard item with suggested name
-          String suggestedName = p.basename(path);
-          if (format == 'png' &&
-              !suggestedName.toLowerCase().endsWith('.png')) {
-            suggestedName = p.setExtension(suggestedName, '.png');
-          }
-          final item = DataWriterItem(suggestedName: suggestedName);
-          switch (format) {
-            case 'png':
-              item.add(Formats.png(outBytes));
-              break;
-            case 'jpeg':
-              item.add(Formats.jpeg(outBytes));
-              break;
-            case 'gif':
-              item.add(Formats.gif(outBytes));
-              break;
-            case 'webp':
-              item.add(Formats.webp(outBytes));
-              break;
-          }
-          await clipboard.write([item]);
-          ok = true;
-        }
-      }
-    } catch (_) {
-      ok = false;
-    }
-    // Fallback to legacy platform channel if needed
-    if (!ok) {
-      try {
-        ok = await ClipboardImages.setImagePath(widget.file.path);
-      } catch (_) {}
-    }
+    final ok = await _copyImagePreviewFileToClipboard(widget.file);
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
     if (ok) {
@@ -380,6 +313,74 @@ class _ImagePreviewDesktopDialogState
       ),
     );
   }
+}
+
+Future<bool> _copyImagePreviewFileToClipboard(File file) async {
+  var ok = false;
+  try {
+    final clipboard = SystemClipboard.instance;
+    if (clipboard != null) {
+      final path = file.path;
+      final bytes = await File(path).readAsBytes();
+      if (bytes.isNotEmpty) {
+        final ext = p.extension(path).toLowerCase();
+        var format = 'png';
+        var outBytes = bytes;
+        if (ext == '.png') {
+          format = 'png';
+        } else if (ext == '.jpg' || ext == '.jpeg') {
+          format = 'jpeg';
+        } else if (ext == '.gif') {
+          format = 'gif';
+        } else if (ext == '.webp') {
+          format = 'webp';
+        } else {
+          try {
+            final codec = await ui.instantiateImageCodec(bytes);
+            final frame = await codec.getNextFrame();
+            final data = await frame.image.toByteData(
+              format: ui.ImageByteFormat.png,
+            );
+            if (data != null) {
+              outBytes = data.buffer.asUint8List();
+              format = 'png';
+            }
+          } catch (_) {}
+        }
+
+        var suggestedName = p.basename(path);
+        if (format == 'png' && !suggestedName.toLowerCase().endsWith('.png')) {
+          suggestedName = p.setExtension(suggestedName, '.png');
+        }
+        final item = DataWriterItem(suggestedName: suggestedName);
+        switch (format) {
+          case 'png':
+            item.add(Formats.png(outBytes));
+            break;
+          case 'jpeg':
+            item.add(Formats.jpeg(outBytes));
+            break;
+          case 'gif':
+            item.add(Formats.gif(outBytes));
+            break;
+          case 'webp':
+            item.add(Formats.webp(outBytes));
+            break;
+        }
+        await clipboard.write([item]);
+        ok = true;
+      }
+    }
+  } catch (_) {
+    ok = false;
+  }
+
+  if (!ok) {
+    try {
+      ok = await ClipboardImages.setImagePath(file.path);
+    } catch (_) {}
+  }
+  return ok;
 }
 
 class _ImagePreviewSheet extends StatefulWidget {
@@ -957,6 +958,7 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
   _ImagePreviewDisplay? _display;
   bool _loadingDisplay = true;
   bool _saving = false;
+  bool _copying = false;
 
   @override
   void initState() {
@@ -1060,6 +1062,25 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
       );
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _onCopy() async {
+    if (_copying) return;
+    setState(() => _copying = true);
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      final ok = await _copyImagePreviewFileToClipboard(widget.file);
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: ok
+            ? l10n.chatMessageWidgetCopiedToClipboard
+            : l10n.messageExportSheetExportFailed('copy-failed'),
+        type: ok ? NotificationType.success : NotificationType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _copying = false);
     }
   }
 
@@ -1186,7 +1207,72 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      // Right main save button (no ripple)
+                      // Copy image button
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: IosCardPress(
+                            onTap: _copying ? null : _onCopy,
+                            borderRadius: BorderRadius.circular(12),
+                            baseColor: cs.onSurface.withValues(alpha: 0.06),
+                            pressedBlendStrength:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? 0.14
+                                : 0.10,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: cs.outline.withValues(alpha: 0.18),
+                                ),
+                              ),
+                              child: Center(
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 180),
+                                  child: _copying
+                                      ? const SizedBox(
+                                          key: ValueKey('copying'),
+                                          width: 18,
+                                          height: 18,
+                                          child: CupertinoActivityIndicator(
+                                            radius: 9,
+                                          ),
+                                        )
+                                      : Row(
+                                          key: const ValueKey('copy-ready'),
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Lucide.Clipboard,
+                                              color: cs.onSurface.withValues(
+                                                alpha: 0.88,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Flexible(
+                                              child: Text(
+                                                l10n.imageViewerPageCopyButton,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: cs.onSurface
+                                                      .withValues(alpha: 0.88),
+                                                  fontWeight:
+                                                      AppFontWeights.semibold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Save image button
                       Expanded(
                         child: SizedBox(
                           height: 48,
@@ -1226,6 +1312,8 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
                                             const SizedBox(width: 8),
                                             Text(
                                               l10n.imagePreviewSheetSaveImage,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                               style: TextStyle(
                                                 color: cs.onPrimary,
                                                 fontWeight:

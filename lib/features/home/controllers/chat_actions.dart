@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
@@ -219,6 +220,16 @@ class ChatActions {
   void _setConversationLoading(String conversationId, bool loading) {
     chatController.setConversationLoading(conversationId, loading);
     onLoadingChanged?.call(conversationId, loading);
+  }
+
+  void _refreshConversationLoading(String conversationId) {
+    final hasStreaming = _messages.any(
+      (m) =>
+          m.conversationId == conversationId &&
+          m.role == 'assistant' &&
+          m.isStreaming,
+    );
+    _setConversationLoading(conversationId, hasStreaming);
   }
 
   bool _isReasoningModel(String providerKey, String modelId) {
@@ -467,11 +478,20 @@ class ChatActions {
       assistant,
     );
 
-    if (modelConfig.providerKey == null || modelConfig.modelId == null) {
+    final targets = input.targetModels.isNotEmpty
+        ? input.targetModels
+        : (modelConfig.providerKey != null && modelConfig.modelId != null
+              ? [
+                  ChatTargetModel(
+                    providerKey: modelConfig.providerKey!,
+                    modelId: modelConfig.modelId!,
+                  ),
+                ]
+              : const <ChatTargetModel>[]);
+
+    if (targets.isEmpty) {
       return ChatActionResult.noModel();
     }
-    final providerKey = modelConfig.providerKey!;
-    final modelId = modelConfig.modelId!;
 
     if (chatController.hasMoreAfter) {
       final loaded = chatController.loadEndWindow();
@@ -482,16 +502,18 @@ class ChatActions {
 
     final existingContextMessages = chatController
         .messagesForCompleteHistoryContext(conversation);
-    if (_hasUnsupportedAudioAttachments(
-      messages: existingContextMessages,
-      conversation: conversation,
-      settings: settings,
-      providerKey: providerKey,
-      modelId: modelId,
-      pendingInput: input,
-      maxRawTruncateIndex: null,
-    )) {
-      return ChatActionResult.error('audio_attachment_unsupported');
+    for (final target in targets) {
+      if (_hasUnsupportedAudioAttachments(
+        messages: existingContextMessages,
+        conversation: conversation,
+        settings: settings,
+        providerKey: target.providerKey,
+        modelId: target.modelId,
+        pendingInput: input,
+        maxRawTruncateIndex: null,
+      )) {
+        return ChatActionResult.error('audio_attachment_unsupported');
+      }
     }
 
     // Create user message
@@ -505,18 +527,92 @@ class ChatActions {
     }
     onMessagesChanged?.call();
 
+    final isMultiModel = targets.length > 1;
+    final multiModelGroupId = isMultiModel ? const Uuid().v4() : null;
+
     _setConversationLoading(conversation.id, true);
 
-    // Create assistant message placeholder
+    messageGenerationService.onFileProcessingStarted = onFileProcessingStarted;
+    messageGenerationService.onFileProcessingFinished =
+        onFileProcessingFinished;
+    final apiContextMessages = chatController.messagesForCompleteHistoryContext(
+      conversation,
+    );
+    final contextConversation = _conversationForMessageContext(
+      conversation,
+      apiContextMessages,
+    );
+
+    ChatMessage? firstAssistantMessage;
+    final futures = <Future<void>>[];
+    for (final target in targets) {
+      futures.add(
+        _sendSingleModelStream(
+          conversation: conversation,
+          apiContextMessages: apiContextMessages,
+          contextConversation: contextConversation,
+          input: input,
+          providerKey: target.providerKey,
+          modelId: target.modelId,
+          assistant: assistant,
+          assistantId: assistantId,
+          settings: settings,
+          approvalService: approvalService,
+          askUserService: askUserService,
+          multiModelGroupId: multiModelGroupId,
+          isMultiModel: isMultiModel,
+          onFirstAssistantCreated: (msg) => firstAssistantMessage ??= msg,
+        ),
+      );
+    }
+
+    try {
+      await Future.wait(futures);
+      final successMsg =
+          firstAssistantMessage ??
+          (targets.isNotEmpty
+              ? await _findLastAssistantForConversation(conversation.id)
+              : null);
+      return successMsg != null
+          ? ChatActionResult.success(successMsg)
+          : ChatActionResult.error('generation_failed');
+    } catch (e) {
+      onFileProcessingFinished?.call();
+      return ChatActionResult.error(e.toString());
+    }
+  }
+
+  /// Send a single model stream for multi-model or single-model generation.
+  Future<void> _sendSingleModelStream({
+    required Conversation conversation,
+    required List<ChatMessage> apiContextMessages,
+    required Conversation contextConversation,
+    required ChatInputData input,
+    required String providerKey,
+    required String modelId,
+    required dynamic assistant,
+    required String? assistantId,
+    required SettingsProvider settings,
+    required ToolApprovalService? approvalService,
+    required AskUserInteractionService? askUserService,
+    String? multiModelGroupId,
+    bool isMultiModel = false,
+    void Function(ChatMessage msg)? onFirstAssistantCreated,
+  }) async {
     final assistantMessage = await messageGenerationService
         .createAssistantPlaceholder(
           conversationId: conversation.id,
           modelId: modelId,
           providerKey: providerKey,
+          multiModelGroupId: multiModelGroupId,
+          multiModelLayout: isMultiModel
+              ? ChatMultiModelLayout.defaultLayout
+              : null,
         );
 
+    onFirstAssistantCreated?.call(assistantMessage);
+
     // Pre-create streaming notifier BEFORE adding message to list
-    // so that MessageListView can detect it's streaming on first render
     streamController.markStreamingStarted(assistantMessage.id);
 
     if (chatController.appendPersistedTailMessage(assistantMessage)) {
@@ -537,21 +633,12 @@ class ChatActions {
       enableReasoning: enableReasoning,
     );
 
-    // Prepare API messages
-    messageGenerationService.onFileProcessingStarted = onFileProcessingStarted;
-    messageGenerationService.onFileProcessingFinished =
-        onFileProcessingFinished;
     try {
-      final apiContextMessages = chatController
-          .messagesForCompleteHistoryContext(conversation);
       final prepared = await messageGenerationService
           .prepareApiMessagesWithInjections(
             messages: apiContextMessages,
             versionSelections: _versionSelections,
-            currentConversation: _conversationForMessageContext(
-              conversation,
-              apiContextMessages,
-            ),
+            currentConversation: contextConversation,
             settings: settings,
             assistant: assistant,
             assistantId: assistantId,
@@ -561,7 +648,6 @@ class ChatActions {
             askUserService: askUserService,
           );
 
-      // Build user image paths
       final userImagePaths = messageGenerationService.buildUserImagePaths(
         input: input,
         lastUserImagePaths: prepared.lastUserImagePaths,
@@ -570,7 +656,6 @@ class ChatActions {
         modelId: modelId,
       );
 
-      // Execute generation
       final ctx = messageGenerationService.buildGenerationContext(
         assistantMessage: assistantMessage,
         prepared: prepared,
@@ -582,16 +667,58 @@ class ChatActions {
         settings: settings,
         supportsReasoning: supportsReasoning,
         enableReasoning: enableReasoning,
-        generateTitleOnFinish: true,
+        generateTitleOnFinish: !isMultiModel,
       );
 
       await _executeGeneration(ctx);
-      return ChatActionResult.success(assistantMessage);
     } catch (e) {
-      // Ensure file processing indicator is cleared on error
-      onFileProcessingFinished?.call();
-      return ChatActionResult.error(e.toString());
+      await _failAssistantBeforeStream(assistantMessage, e);
     }
+  }
+
+  Future<void> _failAssistantBeforeStream(
+    ChatMessage assistantMessage,
+    Object error,
+  ) async {
+    final messageId = assistantMessage.id;
+    final conversationId = assistantMessage.conversationId;
+    final errorText = error.toString();
+
+    onFileProcessingFinished?.call();
+    streamController.markStreamingEnded(messageId);
+    streamController.cleanupTimers(messageId);
+
+    await chatService.updateMessage(
+      messageId,
+      content: errorText,
+      isStreaming: false,
+    );
+
+    final index = _messages.indexWhere((m) => m.id == messageId);
+    if (index != -1) {
+      _messages[index] = _messages[index].copyWith(
+        content: errorText,
+        isStreaming: false,
+      );
+      onMessagesChanged?.call();
+    }
+
+    streamController.removeStreamingNotifier(messageId);
+    _refreshConversationLoading(conversationId);
+    onStreamError?.call(errorText);
+    onStreamFinished?.call();
+  }
+
+  /// Find the last assistant message for a conversation (for multi-model success).
+  Future<ChatMessage?> _findLastAssistantForConversation(
+    String conversationId,
+  ) async {
+    final msgs = chatController.messages
+        .where(
+          (m) => m.conversationId == conversationId && m.role == 'assistant',
+        )
+        .toList();
+    return msgs.isNotEmpty ? msgs.last : null;
   }
 
   // ============================================================================
@@ -891,7 +1018,7 @@ class ChatActions {
       streamController.markStreamingEnded(streamingMessage.id);
       _messages[visibleIndex] = streamingMessage.copyWith(isStreaming: false);
       await chatService.updateMessage(streamingMessage.id, isStreaming: false);
-      _setConversationLoading(conversation.id, false);
+      _refreshConversationLoading(conversation.id);
       return ChatActionResult.error(e.toString());
     }
   }
@@ -920,27 +1047,28 @@ class ChatActions {
     // Reset file processing state on cancel
     onFileProcessingFinished?.call();
 
-    // Cancel active stream for current conversation only
-    final sub = _conversationStreams.remove(cid);
-    await sub?.cancel();
-    ChatApiService.cancelRequest(cid);
-
-    // Find the latest assistant streaming message within current conversation and mark it finished
-    ChatMessage? streaming;
-    for (var i = _messages.length - 1; i >= 0; i--) {
-      final m = _messages[i];
-      if (m.role == 'assistant' && m.isStreaming) {
-        streaming = m;
-        break;
-      }
+    // Cancel all active streams for this conversation (multi-model: per-message keys)
+    final streamingIds = _messages
+        .where(
+          (m) =>
+              m.role == 'assistant' && m.isStreaming && m.conversationId == cid,
+        )
+        .map((m) => m.id)
+        .toList();
+    for (final mid in streamingIds) {
+      final sub = _conversationStreams.remove(mid);
+      await sub?.cancel();
+      ChatApiService.cancelRequest(mid);
     }
-    if (streaming != null) {
-      // Mark streaming as ended to allow UI rebuilds again
-      streamController.markStreamingEnded(streaming.id);
-      streamController.cleanupTimers(streaming.id);
 
-      final idx = _messages.indexWhere((m) => m.id == streaming!.id);
-      final latestStreaming = idx == -1 ? streaming : _messages[idx];
+    for (final mid in streamingIds) {
+      // Mark streaming as ended to allow UI rebuilds again
+      streamController.markStreamingEnded(mid);
+      streamController.cleanupTimers(mid);
+
+      final idx = _messages.indexWhere((m) => m.id == mid);
+      if (idx == -1) continue;
+      final latestStreaming = _messages[idx];
 
       await chatService.updateMessage(
         latestStreaming.id,
@@ -954,12 +1082,11 @@ class ChatActions {
         onMessagesChanged?.call();
       }
 
-      streamController.removeStreamingNotifier(streaming.id);
-      _setConversationLoading(cid, false);
+      streamController.removeStreamingNotifier(mid);
 
       // Use unified reasoning completion method
       await streamController.finishReasoningAndPersist(
-        streaming.id,
+        mid,
         updateReasoningInDb:
             (
               String messageId, {
@@ -978,11 +1105,15 @@ class ChatActions {
 
       // If streaming output included inline base64 images, sanitize them even on manual cancel
       onScheduleImageSanitize?.call(
-        streaming.id,
+        mid,
         latestStreaming.content,
         immediate: true,
       );
+    }
+
+    if (streamingIds.isNotEmpty) {
       await _cancelIosBackgroundGeneration();
+      _setConversationLoading(cid, false);
     } else {
       _setConversationLoading(cid, false);
     }
@@ -996,7 +1127,6 @@ class ChatActions {
   Future<void> _executeGeneration(stream_ctrl.GenerationContext ctx) async {
     final state = stream_ctrl.StreamingState(ctx);
     final assistant = ctx.assistant;
-    final conversationId = state.conversationId;
     final existingSplit = streamController.getContentSplitData(state.messageId);
     if (existingSplit != null) {
       state.contentSplitOffsets = List<int>.of(existingSplit.offsets);
@@ -1027,19 +1157,19 @@ class ChatActions {
         extraHeaders: ctx.extraHeaders,
         extraBody: ctx.extraBody,
         stream: ctx.streamOutput,
-        requestId: conversationId,
+        requestId: state.messageId,
         allowImagesApiRouting: ctx.allowImagesApiRouting,
         ocrActive: ctx.ocrActive,
       );
 
-      await _conversationStreams[conversationId]?.cancel();
+      await _conversationStreams[state.messageId]?.cancel();
       final sub = listenSequentiallyToStream<ChatStreamChunk>(
         stream: stream,
         onData: (chunk) => _handleStreamChunk(chunk, state),
         onError: (error, stackTrace) => _handleStreamError(error, state),
         onDone: () => _handleStreamDone(state),
       );
-      _conversationStreams[conversationId] = sub;
+      _conversationStreams[state.messageId] = sub;
     } catch (e) {
       await _handleStreamError(e, state);
     }
@@ -1328,7 +1458,6 @@ class ChatActions {
     String chunkContent,
   ) async {
     final messageId = state.messageId;
-    final conversationId = state.conversationId;
     final autoCollapseThinking =
         (!state.ctx.streamOutput && state.bufferedReasoning.isNotEmpty)
         ? contextProvider.read<SettingsProvider>().autoCollapseThinking
@@ -1400,7 +1529,7 @@ class ChatActions {
         ..expanded = !(autoCollapseThinking ?? false);
     }
 
-    await _conversationStreams.remove(conversationId)?.cancel();
+    await _conversationStreams.remove(messageId)?.cancel();
 
     // Ensure reasoning is finished
     final r = streamController.reasoning[messageId];
@@ -1504,7 +1633,7 @@ class ChatActions {
     // Remove notifier AFTER onMessagesChanged so the UI rebuild sees final content
     streamController.removeStreamingNotifier(messageId);
 
-    _setConversationLoading(conversationId, false);
+    _refreshConversationLoading(conversationId);
     onAssistantMessageFinished?.call(finalizedMessage);
 
     // Use unified reasoning completion method
@@ -1581,7 +1710,7 @@ class ChatActions {
     // Remove notifier AFTER onMessagesChanged so the UI rebuild sees final content
     streamController.removeStreamingNotifier(messageId);
 
-    _setConversationLoading(conversationId, false);
+    _refreshConversationLoading(conversationId);
 
     // Use unified reasoning completion method on error
     await streamController.finishReasoningAndPersist(
@@ -1602,7 +1731,7 @@ class ChatActions {
           },
     );
 
-    await _conversationStreams.remove(conversationId)?.cancel();
+    await _conversationStreams.remove(messageId)?.cancel();
     onStreamError?.call(errorText);
     onStreamFinished?.call();
     await _finishIosBackgroundGeneration(success: false, detail: errorText);
@@ -1613,7 +1742,6 @@ class ChatActions {
     // Reset file processing state on done (just in case)
     onFileProcessingFinished?.call();
 
-    final conversationId = state.conversationId;
     final messageId = state.messageId;
 
     // Ensure streaming is marked as ended
@@ -1628,7 +1756,7 @@ class ChatActions {
     final inFlight = _finishStreamingFutures[messageId];
     if (inFlight != null) {
       await inFlight;
-    } else if (_loadingConversationIds.contains(conversationId)) {
+    } else if (!state.finishHandled) {
       await _finishStreaming(
         state,
         generateTitle: state.ctx.generateTitleOnFinish,
@@ -1637,7 +1765,7 @@ class ChatActions {
     // Idempotent: ensure notifier is removed even if _finishStreaming was skipped
     streamController.removeStreamingNotifier(messageId);
     onStreamFinished?.call();
-    await _conversationStreams.remove(conversationId)?.cancel();
+    await _conversationStreams.remove(messageId)?.cancel();
   }
 
   // ============================================================================

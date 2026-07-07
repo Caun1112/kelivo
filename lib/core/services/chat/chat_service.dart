@@ -845,6 +845,8 @@ class ChatService extends ChangeNotifier {
     DateTime? reasoningFinishedAt,
     String? groupId,
     int? version,
+    String? multiModelGroupId,
+    String? multiModelLayout,
   }) async {
     if (!_initialized) await init();
 
@@ -887,6 +889,8 @@ class ChatService extends ChangeNotifier {
       reasoningFinishedAt: reasoningFinishedAt,
       groupId: groupId,
       version: version,
+      multiModelGroupId: multiModelGroupId,
+      multiModelLayout: multiModelLayout,
     );
 
     if (!temporary) {
@@ -952,6 +956,8 @@ class ChatService extends ChangeNotifier {
     int? completionTokens,
     int? cachedTokens,
     int? durationMs,
+    String? multiModelGroupId,
+    String? multiModelLayout,
   }) async {
     if (!_initialized) return;
 
@@ -973,6 +979,8 @@ class ChatService extends ChangeNotifier {
       completionTokens: completionTokens ?? message.completionTokens,
       cachedTokens: cachedTokens ?? message.cachedTokens,
       durationMs: durationMs ?? message.durationMs,
+      multiModelGroupId: multiModelGroupId ?? message.multiModelGroupId,
+      multiModelLayout: multiModelLayout ?? message.multiModelLayout,
     );
 
     if (isTemporaryConversation(message.conversationId)) {
@@ -1018,6 +1026,8 @@ class ChatService extends ChangeNotifier {
     int? completionTokens,
     int? cachedTokens,
     int? durationMs,
+    String? multiModelGroupId,
+    String? multiModelLayout,
   }) async {
     if (!_initialized) return;
 
@@ -1039,6 +1049,8 @@ class ChatService extends ChangeNotifier {
       completionTokens: completionTokens ?? message.completionTokens,
       cachedTokens: cachedTokens ?? message.cachedTokens,
       durationMs: durationMs ?? message.durationMs,
+      multiModelGroupId: multiModelGroupId ?? message.multiModelGroupId,
+      multiModelLayout: multiModelLayout ?? message.multiModelLayout,
     );
 
     if (isTemporaryConversation(message.conversationId)) {
@@ -1213,6 +1225,8 @@ class ChatService extends ChangeNotifier {
         reasoningFinishedAt: src.reasoningFinishedAt,
         translation: src.translation,
         reasoningSegmentsJson: src.reasoningSegmentsJson,
+        multiModelGroupId: src.multiModelGroupId,
+        multiModelLayout: src.multiModelLayout,
       );
       await _messagesBox.put(clone.id, clone);
       ids.add(clone.id);
@@ -1268,6 +1282,8 @@ class ChatService extends ChangeNotifier {
       isStreaming: false,
       groupId: gid,
       version: nextVersion,
+      multiModelGroupId: original.multiModelGroupId,
+      multiModelLayout: original.multiModelLayout,
     );
     await _messagesBox.put(newMsg.id, newMsg);
     // Append to conversation order at the end (we'll group when rendering)

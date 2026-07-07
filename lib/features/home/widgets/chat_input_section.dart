@@ -45,7 +45,9 @@ class ChatInputSection extends StatelessWidget {
     this.onOpenMcp,
     this.onLongPressMcp,
     this.onOpenSearch,
+    this.onMultiModel,
     this.onConfigureReasoning,
+    this.multiModelActive = false,
     this.onSend,
     this.onStop,
     this.hasQueuedInput = false,
@@ -66,6 +68,7 @@ class ChatInputSection extends StatelessWidget {
     this.conversationId,
     this.sendButtonTooltip,
     this.backgroundImageActive = false,
+    this.selectedModels = const [],
   });
 
   final GlobalKey inputBarKey;
@@ -87,7 +90,9 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onOpenMcp;
   final VoidCallback? onLongPressMcp;
   final VoidCallback? onOpenSearch;
+  final VoidCallback? onMultiModel;
   final VoidCallback? onConfigureReasoning;
+  final bool multiModelActive;
   final Future<ChatInputSubmissionResult> Function(ChatInputData)? onSend;
   final VoidCallback? onStop;
   final bool hasQueuedInput;
@@ -108,6 +113,7 @@ class ChatInputSection extends StatelessWidget {
   final String? conversationId;
   final String? sendButtonTooltip;
   final bool backgroundImageActive;
+  final List<ChatTargetModel> selectedModels;
 
   @override
   Widget build(BuildContext context) {
@@ -164,6 +170,8 @@ class ChatInputSection extends StatelessWidget {
           ? isReasoningModel(pk, mid)
           : false,
       onOpenSearch: onOpenSearch,
+      onMultiModel: onMultiModel,
+      multiModelActive: multiModelActive,
       onSend: onSend,
       loading: isLoading,
       sendButtonTooltip: sendButtonTooltip,
@@ -210,6 +218,7 @@ class ChatInputSection extends StatelessWidget {
       backgroundImageActive: backgroundImageActive,
       inputBackgroundOpacityLight: settings.chatInputBackgroundOpacityLight,
       inputBackgroundOpacityDark: settings.chatInputBackgroundOpacityDark,
+      selectedModels: selectedModels,
     );
   }
 

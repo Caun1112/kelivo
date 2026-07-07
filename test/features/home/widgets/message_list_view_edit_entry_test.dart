@@ -8,6 +8,7 @@ import 'package:Kelivo/features/home/controllers/stream_controller.dart'
 import 'package:Kelivo/features/home/services/ask_user_interaction_service.dart';
 import 'package:Kelivo/features/home/services/tool_approval_service.dart';
 import 'package:Kelivo/features/home/widgets/message_list_view.dart';
+import 'package:Kelivo/features/home/widgets/multi_model_group_card.dart';
 import 'package:Kelivo/l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -72,6 +73,45 @@ void main() {
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }
+  });
+
+  testWidgets('多模型分组消息渲染时不会递归构建组卡片', (tester) async {
+    final messages = <ChatMessage>[
+      ChatMessage(
+        id: 'user-question',
+        role: 'user',
+        content: 'hello',
+        conversationId: 'conversation-1',
+      ),
+      ChatMessage(
+        id: 'assistant-a',
+        role: 'assistant',
+        content: 'first grouped answer',
+        conversationId: 'conversation-1',
+        multiModelGroupId: 'group-1',
+        modelId: 'model-a',
+        providerId: 'provider-a',
+      ),
+      ChatMessage(
+        id: 'assistant-b',
+        role: 'assistant',
+        content: 'second grouped answer',
+        conversationId: 'conversation-1',
+        multiModelGroupId: 'group-1',
+        modelId: 'model-b',
+        providerId: 'provider-b',
+      ),
+    ];
+
+    await tester.pumpWidget(
+      _MessageListHarness(messages: messages, onEditMessage: (_) {}),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(MultiModelGroupCard), findsOneWidget);
+    expect(find.text('first grouped answer'), findsOneWidget);
+    expect(find.text('second grouped answer'), findsOneWidget);
   });
 }
 

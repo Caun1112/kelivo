@@ -2451,6 +2451,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatInputBarReasoningStrengthTooltip => '思维链强度';
 
   @override
+  String get chatInputBarMultiModelTooltip => '多模型';
+
+  @override
   String get chatInputBarMcpServersTooltip => 'MCP服务器';
 
   @override
@@ -5320,6 +5323,37 @@ class AppLocalizationsZh extends AppLocalizations {
   String debugPageManyMessagesSeedText(String role, int index) {
     return '$role 消息 #$index：快速随机调试样例，用于测试列表渲染、滚动稳定性、消息分组和会话历史性能。';
   }
+
+  @override
+  String get multiModelLayoutHorizontal => '左右并排';
+
+  @override
+  String get multiModelLayoutVertical => '上下堆叠';
+
+  @override
+  String get multiModelLayoutGrid => '九宫格';
+
+  @override
+  String get multiModelSelectorTitle => '多模型对比';
+
+  @override
+  String get multiModelSelectorSearchHint => '搜索模型';
+
+  @override
+  String get multiModelSelectorNoModels => '暂无可用模型';
+
+  @override
+  String get multiModelSelectorClear => '清空';
+
+  @override
+  String multiModelSelectorSelectedCount(int count) {
+    return '已选择 $count 个';
+  }
+
+  @override
+  String multiModelResponseCount(int count) {
+    return '$count 个模型回答';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -7767,6 +7801,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatInputBarReasoningStrengthTooltip => '思维链强度';
+
+  @override
+  String get chatInputBarMultiModelTooltip => '多模型';
 
   @override
   String get chatInputBarMcpServersTooltip => 'MCP服务器';
@@ -10638,6 +10675,37 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String debugPageManyMessagesSeedText(String role, int index) {
     return '$role 消息 #$index：快速随机调试样例，用于测试列表渲染、滚动稳定性、消息分组和会话历史性能。';
   }
+
+  @override
+  String get multiModelLayoutHorizontal => '左右并排';
+
+  @override
+  String get multiModelLayoutVertical => '上下堆叠';
+
+  @override
+  String get multiModelLayoutGrid => '九宫格';
+
+  @override
+  String get multiModelSelectorTitle => '多模型对比';
+
+  @override
+  String get multiModelSelectorSearchHint => '搜索模型';
+
+  @override
+  String get multiModelSelectorNoModels => '暂无可用模型';
+
+  @override
+  String get multiModelSelectorClear => '清空';
+
+  @override
+  String multiModelSelectorSelectedCount(int count) {
+    return '已选择 $count 个';
+  }
+
+  @override
+  String multiModelResponseCount(int count) {
+    return '$count 个模型回答';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -13084,6 +13152,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatInputBarReasoningStrengthTooltip => '思維鏈強度';
+
+  @override
+  String get chatInputBarMultiModelTooltip => '多模型';
 
   @override
   String get chatInputBarMcpServersTooltip => 'MCP伺服器';
@@ -15955,5 +16026,36 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String debugPageManyMessagesSeedText(String role, int index) {
     return '$role 訊息 #$index：快速隨機調試樣例，用於測試列表渲染、捲動穩定性、訊息分組和會話歷史效能。';
+  }
+
+  @override
+  String get multiModelLayoutHorizontal => '左右並排';
+
+  @override
+  String get multiModelLayoutVertical => '上下堆疊';
+
+  @override
+  String get multiModelLayoutGrid => '九宮格';
+
+  @override
+  String get multiModelSelectorTitle => '多模型對比';
+
+  @override
+  String get multiModelSelectorSearchHint => '搜尋模型';
+
+  @override
+  String get multiModelSelectorNoModels => '暫無可用模型';
+
+  @override
+  String get multiModelSelectorClear => '清空';
+
+  @override
+  String multiModelSelectorSelectedCount(int count) {
+    return '已選擇 $count 個';
+  }
+
+  @override
+  String multiModelResponseCount(int count) {
+    return '$count 個模型回答';
   }
 }

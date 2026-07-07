@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -40,16 +42,149 @@ void main() {
       expect(moonshot.modelOverrides, isEmpty);
     });
 
-    test('built-in provider order does not add Kimi preset', () async {
+    test(
+      'built-in provider order drops unconfigured disabled presets',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'providers_order_v1': <String>['OpenAI', 'Zhipu AI', 'Grok'],
+        });
+        final settings = SettingsProvider();
+
+        await _waitForSettingsLoad();
+
+        expect(settings.providersOrder, isNot(contains('Kimi')));
+        expect(settings.providersOrder, isNot(contains('Zhipu AI')));
+        expect(settings.providersOrder, isNot(contains('Grok')));
+        expect(settings.providersOrder.first, 'OpenAI');
+      },
+    );
+
+    test(
+      'disabled built-in preset without user settings stays hidden',
+      () async {
+        final claude = ProviderConfig.defaultsFor(
+          'Claude',
+        ).copyWith(enabled: false);
+        SharedPreferences.setMockInitialValues({
+          'providers_order_v1': <String>['Claude'],
+          'provider_configs_v1': jsonEncode({'Claude': claude.toJson()}),
+        });
+        final settings = SettingsProvider();
+
+        await _waitForSettingsLoad();
+
+        expect(settings.providersOrder, isNot(contains('Claude')));
+        expect(settings.shouldShowProviderInSettingsList('Claude'), isFalse);
+      },
+    );
+
+    test(
+      'disabled built-in provider with user settings stays visible',
+      () async {
+        final claude = ProviderConfig.defaultsFor(
+          'Claude',
+        ).copyWith(enabled: false, apiKey: 'test-key');
+        SharedPreferences.setMockInitialValues({
+          'providers_order_v1': <String>['Claude'],
+          'provider_configs_v1': jsonEncode({'Claude': claude.toJson()}),
+        });
+        final settings = SettingsProvider();
+
+        await _waitForSettingsLoad();
+
+        expect(settings.providersOrder, contains('Claude'));
+        expect(settings.shouldShowProviderInSettingsList('Claude'), isTrue);
+      },
+    );
+
+    test('disabled custom provider stays visible', () async {
+      final custom = ProviderConfig(
+        id: 'CustomProvider',
+        enabled: false,
+        name: 'Custom Provider',
+        apiKey: '',
+        baseUrl: 'https://example.test/v1',
+        providerType: ProviderKind.openai,
+      );
       SharedPreferences.setMockInitialValues({
-        'providers_order_v1': <String>['OpenAI', 'Zhipu AI', 'Grok'],
+        'providers_order_v1': <String>['CustomProvider'],
+        'provider_configs_v1': jsonEncode({'CustomProvider': custom.toJson()}),
       });
       final settings = SettingsProvider();
 
       await _waitForSettingsLoad();
 
-      expect(settings.providersOrder, isNot(contains('Kimi')));
-      expect(settings.providersOrder.take(3), ['OpenAI', 'Zhipu AI', 'Grok']);
+      expect(settings.providersOrder, contains('CustomProvider'));
+      expect(
+        settings.shouldShowProviderInSettingsList('CustomProvider'),
+        isTrue,
+      );
+    });
+
+    test('removing built-in provider without config hides it', () async {
+      SharedPreferences.setMockInitialValues({
+        'providers_order_v1': <String>['OpenAI'],
+      });
+      final settings = SettingsProvider();
+
+      await _waitForSettingsLoad();
+      await settings.removeProviderConfig('OpenAI');
+
+      final removed = settings.providerConfigs['OpenAI'];
+      expect(removed, isNotNull);
+      expect(removed!.enabled, isFalse);
+      expect(settings.providersOrder, isNot(contains('OpenAI')));
+      expect(settings.shouldShowProviderInSettingsList('OpenAI'), isFalse);
+    });
+
+    test(
+      'removing configured built-in provider clears user settings',
+      () async {
+        final openAI = ProviderConfig.defaultsFor('OpenAI').copyWith(
+          apiKey: 'test-key',
+          models: const ['gpt-test'],
+          modelOverrides: const {
+            'gpt-test': {'type': 'chat'},
+          },
+        );
+        SharedPreferences.setMockInitialValues({
+          'providers_order_v1': <String>['OpenAI'],
+          'provider_configs_v1': jsonEncode({'OpenAI': openAI.toJson()}),
+        });
+        final settings = SettingsProvider();
+
+        await _waitForSettingsLoad();
+        await settings.removeProviderConfig('OpenAI');
+
+        final removed = settings.providerConfigs['OpenAI'];
+        expect(removed, isNotNull);
+        expect(removed!.enabled, isFalse);
+        expect(removed.apiKey, isEmpty);
+        expect(removed.models, isEmpty);
+        expect(removed.modelOverrides, isEmpty);
+        expect(settings.providersOrder, isNot(contains('OpenAI')));
+        expect(settings.shouldShowProviderInSettingsList('OpenAI'), isFalse);
+      },
+    );
+
+    test('removing custom provider still deletes config', () async {
+      SharedPreferences.setMockInitialValues({});
+      final settings = SettingsProvider();
+      final custom = ProviderConfig(
+        id: 'CustomProvider',
+        enabled: true,
+        name: 'Custom Provider',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.test/v1',
+        providerType: ProviderKind.openai,
+      );
+
+      await _waitForSettingsLoad();
+      await settings.setProviderConfig('CustomProvider', custom);
+      await settings.removeProviderConfig('CustomProvider');
+
+      expect(settings.providerConfigs.containsKey('CustomProvider'), isFalse);
+      expect(settings.providersOrder, isNot(contains('CustomProvider')));
     });
 
     test('latest GLM and Kimi model ids infer expected capabilities', () {

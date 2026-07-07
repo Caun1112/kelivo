@@ -834,6 +834,7 @@
   "chatInputBarSelectModelTooltip": "选择模型",
   "chatInputBarOnlineSearchTooltip": "联网搜索",
   "chatInputBarReasoningStrengthTooltip": "思维链强度",
+  "chatInputBarMultiModelTooltip": "多模型",
   "chatInputBarMcpServersTooltip": "MCP服务器",
   "chatInputBarMoreTooltip": "更多",
   "chatInputBarImageMode": "绘图模式",
@@ -1955,5 +1956,29 @@
         "type": "int"
       }
     }
+  },
+  "multiModelLayoutHorizontal": "左右并排",
+  "multiModelLayoutVertical": "上下堆叠",
+  "multiModelLayoutGrid": "九宫格",
+  "multiModelSelectorTitle": "多模型对比",
+  "multiModelSelectorSearchHint": "搜索模型",
+  "multiModelSelectorNoModels": "暂无可用模型",
+  "multiModelSelectorClear": "清空",
+  "multiModelSelectorSelectedCount": "已选择 {count} 个",
+  "@multiModelSelectorSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "multiModelResponseCount": "{count} 个模型回答",
+  "@multiModelResponseCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
+
 }

@@ -383,6 +383,94 @@ class SettingsProvider extends ChangeNotifier {
       Map.unmodifiable(_providerConfigs);
   bool get hasAnyActiveModel =>
       _providerConfigs.values.any((c) => c.enabled && c.models.isNotEmpty);
+
+  bool shouldShowProviderInSettingsList(String key, {String? defaultName}) {
+    if (!_builtInProviderKeys.contains(key)) return true;
+    final cfg =
+        _providerConfigs[key] ??
+        ProviderConfig.defaultsFor(key, displayName: defaultName);
+    if (cfg.enabled) return true;
+    return _hasNonDefaultProviderSettings(key, cfg, defaultName: defaultName);
+  }
+
+  bool _hasNonDefaultProviderSettings(
+    String key,
+    ProviderConfig cfg, {
+    String? defaultName,
+  }) {
+    final defaults = ProviderConfig.defaultsFor(key, displayName: defaultName);
+    bool stringChanged(String? value, String? fallback) =>
+        (value ?? '').trim() != (fallback ?? '').trim();
+    bool boolChanged(bool? value, bool? fallback) =>
+        (value ?? false) != (fallback ?? false);
+
+    if (stringChanged(cfg.apiKey, defaults.apiKey) ||
+        stringChanged(cfg.baseUrl, defaults.baseUrl) ||
+        cfg.providerType != defaults.providerType ||
+        stringChanged(cfg.chatPath, defaults.chatPath) ||
+        boolChanged(cfg.useResponseApi, defaults.useResponseApi) ||
+        boolChanged(cfg.vertexAI, defaults.vertexAI) ||
+        stringChanged(cfg.location, defaults.location) ||
+        stringChanged(cfg.projectId, defaults.projectId) ||
+        stringChanged(cfg.serviceAccountJson, defaults.serviceAccountJson) ||
+        !listEquals(cfg.models, defaults.models) ||
+        !_deepCollectionEquals(cfg.modelOverrides, defaults.modelOverrides) ||
+        boolChanged(cfg.proxyEnabled, defaults.proxyEnabled) ||
+        stringChanged(cfg.proxyType, defaults.proxyType) ||
+        stringChanged(cfg.proxyHost, defaults.proxyHost) ||
+        stringChanged(cfg.proxyPort, defaults.proxyPort) ||
+        stringChanged(cfg.proxyUsername, defaults.proxyUsername) ||
+        stringChanged(cfg.proxyPassword, defaults.proxyPassword) ||
+        stringChanged(cfg.avatarType, defaults.avatarType) ||
+        stringChanged(cfg.avatarValue, defaults.avatarValue) ||
+        boolChanged(cfg.multiKeyEnabled, defaults.multiKeyEnabled) ||
+        !_deepCollectionEquals(
+          cfg.apiKeys?.map((e) => e.toJson()).toList() ?? const [],
+          defaults.apiKeys?.map((e) => e.toJson()).toList() ?? const [],
+        ) ||
+        !_deepCollectionEquals(
+          cfg.keyManagement?.toJson(),
+          defaults.keyManagement?.toJson(),
+        ) ||
+        boolChanged(
+          cfg.aihubmixAppCodeEnabled,
+          defaults.aihubmixAppCodeEnabled,
+        ) ||
+        boolChanged(cfg.balanceEnabled, defaults.balanceEnabled) ||
+        stringChanged(cfg.balanceApiPath, defaults.balanceApiPath) ||
+        stringChanged(cfg.balanceResultPath, defaults.balanceResultPath) ||
+        boolChanged(
+          cfg.claudePromptCachingEnabled,
+          defaults.claudePromptCachingEnabled,
+        ) ||
+        stringChanged(
+          cfg.claudePromptCachingTtl,
+          defaults.claudePromptCachingTtl,
+        )) {
+      return true;
+    }
+    return false;
+  }
+
+  static bool _deepCollectionEquals(Object? a, Object? b) {
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final key in a.keys) {
+        if (!b.containsKey(key)) return false;
+        if (!_deepCollectionEquals(a[key], b[key])) return false;
+      }
+      return true;
+    }
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (!_deepCollectionEquals(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    return a == b;
+  }
+
   // Returns a config for the given key without mutating internal state when missing.
   // This avoids implicitly creating providers during read paths (e.g., rendering old chats).
   ProviderConfig getProviderConfig(String key, {String? defaultName}) {
@@ -1925,8 +2013,12 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Set<String> _knownProviderKeys() => <String>{
-    ..._builtInProviderKeys,
-    ..._providerConfigs.keys,
+    for (final key in _builtInProviderKeysInOrder)
+      if (shouldShowProviderInSettingsList(key)) key,
+    for (final key in _providerConfigs.keys)
+      if (!_builtInProviderKeys.contains(key) ||
+          shouldShowProviderInSettingsList(key))
+        key,
   };
 
   bool _cleanupProviderOrderAndGrouping() {
@@ -1948,8 +2040,10 @@ class SettingsProvider extends ChangeNotifier {
       nextOrder.add(k);
     }
     final mergedDefault = <String>[
-      ..._builtInProviderKeysInOrder,
-      ..._providerConfigs.keys.where((k) => !_builtInProviderKeys.contains(k)),
+      for (final key in _builtInProviderKeysInOrder)
+        if (knownKeys.contains(key)) key,
+      for (final key in _providerConfigs.keys)
+        if (!_builtInProviderKeys.contains(key) && knownKeys.contains(key)) key,
     ];
     for (final k in mergedDefault) {
       if (knownKeys.contains(k) && seen.add(k)) {
@@ -2465,10 +2559,22 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setProviderConfig(String key, ProviderConfig config) async {
     _providerConfigs[key] = config;
+    final cleanupChanged = _cleanupProviderOrderAndGrouping();
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     final map = _providerConfigs.map((k, v) => MapEntry(k, v.toJson()));
     await prefs.setString(_providerConfigsKey, jsonEncode(map));
+    if (cleanupChanged) {
+      await prefs.setStringList(_providersOrderKey, _providersOrder);
+      await prefs.setString(
+        _providerGroupMapKey,
+        jsonEncode(_providerGroupMap),
+      );
+      await prefs.setString(
+        _providerGroupCollapsedKey,
+        jsonEncode(_providerGroupCollapsed),
+      );
+    }
   }
 
   Future<int> deleteModels(String providerKey, Set<String> modelIds) async {
@@ -2743,8 +2849,15 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> removeProviderConfig(String key) async {
-    if (!_providerConfigs.containsKey(key)) return;
-    _providerConfigs.remove(key);
+    final isBuiltIn = _builtInProviderKeys.contains(key);
+    if (!isBuiltIn && !_providerConfigs.containsKey(key)) return;
+    if (isBuiltIn) {
+      _providerConfigs[key] = ProviderConfig.defaultsFor(
+        key,
+      ).copyWith(enabled: false);
+    } else {
+      _providerConfigs.remove(key);
+    }
     // Remove from order
     _providersOrder = List<String>.from(_providersOrder.where((k) => k != key));
     // Also remove from grouping map

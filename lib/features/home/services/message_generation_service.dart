@@ -266,6 +266,8 @@ class MessageGenerationService {
     required String providerKey,
     String? groupId,
     int version = 0,
+    String? multiModelGroupId,
+    String? multiModelLayout,
   }) async {
     return chatService.addMessage(
       conversationId: conversationId,
@@ -276,6 +278,8 @@ class MessageGenerationService {
       isStreaming: true,
       groupId: groupId,
       version: version,
+      multiModelGroupId: multiModelGroupId,
+      multiModelLayout: multiModelLayout,
     );
   }
 

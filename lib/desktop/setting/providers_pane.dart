@@ -201,7 +201,6 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
     required ({String name, String key}) item,
     required SettingsProvider settings,
     required List<({String name, String key})> ordered,
-    required Set<String> baseKeys,
     required ColorScheme colorScheme,
   }) {
     final cfg = settings.getProviderConfig(item.key, defaultName: item.name);
@@ -232,49 +231,47 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
           );
         });
       },
-      onDelete: baseKeys.contains(item.key)
-          ? null
-          : () async {
-              final l10n = AppLocalizations.of(context)!;
-              final ap = context.read<AssistantProvider>();
-              final ok = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: Text(l10n.providerDetailPageDeleteProviderTitle),
-                  content: Text(l10n.providerDetailPageDeleteProviderContent),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(false),
-                      child: Text(l10n.providerDetailPageCancelButton),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(true),
-                      child: Text(
-                        l10n.providerDetailPageDeleteButton,
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
+      onDelete: () async {
+        final l10n = AppLocalizations.of(context)!;
+        final ap = context.read<AssistantProvider>();
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.providerDetailPageDeleteProviderTitle),
+            content: Text(l10n.providerDetailPageDeleteProviderContent),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(l10n.providerDetailPageCancelButton),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(
+                  l10n.providerDetailPageDeleteButton,
+                  style: TextStyle(color: Colors.red),
                 ),
+              ),
+            ],
+          ),
+        );
+        if (ok != true) return;
+        try {
+          for (final assistant in ap.assistants) {
+            if (assistant.chatModelProvider == item.key) {
+              await ap.updateAssistant(
+                assistant.copyWith(clearChatModel: true),
               );
-              if (ok != true) return;
-              try {
-                for (final assistant in ap.assistants) {
-                  if (assistant.chatModelProvider == item.key) {
-                    await ap.updateAssistant(
-                      assistant.copyWith(clearChatModel: true),
-                    );
-                  }
-                }
-              } catch (_) {}
-              await settings.removeProviderConfig(item.key);
-              if (!mounted) return;
-              setState(() {
-                if (_selectedKey == item.key) {
-                  _selectedKey = ordered.isNotEmpty ? ordered.first.key : null;
-                }
-              });
-            },
+            }
+          }
+        } catch (_) {}
+        await settings.removeProviderConfig(item.key);
+        if (!mounted) return;
+        setState(() {
+          if (_selectedKey == item.key) {
+            _selectedKey = ordered.isNotEmpty ? ordered.first.key : null;
+          }
+        });
+      },
     );
   }
 
@@ -285,7 +282,7 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
     final settings = context.watch<SettingsProvider>();
 
     // Base providers (same as mobile list)
-    List<({String name, String key})> base() => [
+    List<({String name, String key})> allBase() => [
       (name: 'OpenAI', key: 'OpenAI'),
       (name: l10n.providersPageSiliconFlowName, key: 'SiliconFlow'),
       (name: 'Gemini', key: 'Gemini'),
@@ -302,10 +299,20 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
     ];
 
     final cfgs = settings.providerConfigs;
-    final baseKeys = {for (final p in base()) p.key};
+    final baseItems = allBase();
+    final baseKeys = {for (final p in baseItems) p.key};
+    final visibleBaseItems = [
+      for (final p in baseItems)
+        if (settings.shouldShowProviderInSettingsList(
+          p.key,
+          defaultName: p.name,
+        ))
+          p,
+    ];
     final dynamicItems = <({String name, String key})>[];
     cfgs.forEach((key, cfg) {
-      if (!baseKeys.contains(key)) {
+      if (!baseKeys.contains(key) &&
+          settings.shouldShowProviderInSettingsList(key)) {
         dynamicItems.add((
           name: (cfg.name.isNotEmpty ? cfg.name : key),
           key: key,
@@ -313,7 +320,10 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
       }
     });
     // Apply saved order
-    final merged = <({String name, String key})>[...base(), ...dynamicItems];
+    final merged = <({String name, String key})>[
+      ...visibleBaseItems,
+      ...dynamicItems,
+    ];
     final order = settings.providersOrder;
     final map = {for (final p in merged) p.key: p};
     final ordered = <({String name, String key})>[];
@@ -339,9 +349,14 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
           )
         : const <_DesktopProviderGroupingRowVM>[];
 
-    _selectedKey ??=
-        (widget.initialSelectedKey ??
-        (ordered.isNotEmpty ? ordered.first.key : null));
+    if (_selectedKey == null ||
+        !ordered.any((item) => item.key == _selectedKey)) {
+      _selectedKey =
+          widget.initialSelectedKey != null &&
+              ordered.any((item) => item.key == widget.initialSelectedKey)
+          ? widget.initialSelectedKey
+          : (ordered.isNotEmpty ? ordered.first.key : null);
+    }
     final selectedKey = _selectedKey;
     final rightPane = selectedKey == null
         ? const SizedBox()
@@ -606,7 +621,6 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
                                                       item: row.item,
                                                       settings: settings,
                                                       ordered: ordered,
-                                                      baseKeys: baseKeys,
                                                       colorScheme: cs,
                                                     )
                                                   : ReorderableDragStartListener(
@@ -616,7 +630,6 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
                                                             item: row.item,
                                                             settings: settings,
                                                             ordered: ordered,
-                                                            baseKeys: baseKeys,
                                                             colorScheme: cs,
                                                           ),
                                                     ),
@@ -659,7 +672,6 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
                                   item: item,
                                   settings: settings,
                                   ordered: ordered,
-                                  baseKeys: baseKeys,
                                   colorScheme: cs,
                                 );
                                 return KeyedSubtree(

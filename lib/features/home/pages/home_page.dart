@@ -51,6 +51,7 @@ import '../widgets/learning_prompt_sheet.dart';
 import '../widgets/scroll_nav_buttons.dart';
 import '../widgets/message_list_view.dart';
 import '../widgets/chat_input_section.dart';
+import '../widgets/multi_model_selector.dart';
 import '../widgets/chat_input_overlay_layout.dart';
 import '../widgets/chat_selection_app_bar.dart';
 import '../widgets/chat_selection_delete_bar.dart';
@@ -1196,6 +1197,9 @@ class _HomePageState extends State<HomePage>
         onToggleReasoningSegment: (messageId, segmentIndex) {
           _controller.toggleReasoningSegment(messageId, segmentIndex);
         },
+        onMultiModelLayoutChanged: (group, newLayout) {
+          _controller.setMultiModelLayout(group, newLayout);
+        },
       ),
     );
   }
@@ -1242,6 +1246,8 @@ class _HomePageState extends State<HomePage>
         ).push(MaterialPageRoute(builder: (_) => const McpPage()));
       },
       onOpenSearch: _openSearchSettings,
+      onMultiModel: () => _showMultiModelSelector(context),
+      multiModelActive: _controller.targetModels.isNotEmpty,
       onConfigureReasoning: () async {
         final assistantProvider = context.read<AssistantProvider>();
         final settingsProvider = context.read<SettingsProvider>();
@@ -1291,6 +1297,7 @@ class _HomePageState extends State<HomePage>
       onClearContext: _controller.clearContext,
       onCompressContext: _handleDesktopCompressContext,
       backgroundImageActive: _assistantBackgroundActive(context),
+      selectedModels: _controller.targetModels,
     );
   }
 
@@ -1625,6 +1632,21 @@ class _HomePageState extends State<HomePage>
         type: NotificationType.error,
         duration: const Duration(seconds: 6),
       );
+    }
+  }
+
+  void _showMultiModelSelector(BuildContext context) async {
+    final assistant = context.read<AssistantProvider>().currentAssistant;
+    final settings = context.read<SettingsProvider>();
+    final selected = await showMultiModelSelector(
+      context,
+      initialSelected: _controller.targetModels,
+      currentProviderKey:
+          assistant?.chatModelProvider ?? settings.currentModelProvider,
+      currentModelId: assistant?.chatModelId ?? settings.currentModelId,
+    );
+    if (selected != null && mounted) {
+      _controller.setTargetModels(selected);
     }
   }
 

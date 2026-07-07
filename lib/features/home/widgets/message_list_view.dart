@@ -9,6 +9,7 @@ import 'package:scrollview_observer/scrollview_observer.dart';
 
 import '../../../core/models/chat_message.dart';
 import '../../../core/providers/settings_provider.dart';
+import 'multi_model_group_card.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
@@ -130,6 +131,7 @@ class MessageListView extends StatefulWidget {
     this.onLoadMoreBefore,
     this.hasMoreAfter = false,
     this.onLoadMoreAfter,
+    this.onMultiModelLayoutChanged,
   });
 
   final ScrollController scrollController;
@@ -198,6 +200,8 @@ class MessageListView extends StatefulWidget {
   final bool Function()? onLoadMoreBefore;
   final bool hasMoreAfter;
   final bool Function()? onLoadMoreAfter;
+  final void Function(List<ChatMessage> group, String newLayout)?
+  onMultiModelLayoutChanged;
 
   @override
   State<MessageListView> createState() => _MessageListViewState();
@@ -486,8 +490,25 @@ class _MessageListViewState extends State<MessageListView> {
     BuildContext context, {
     required int index,
     required bool isProcessingFiles,
+    bool allowMultiModelGrouping = true,
   }) {
     final message = widget.messages[index];
+
+    // 只在顶层列表聚合同组多模型消息；组内卡片必须直接渲染单条消息。
+    if (message.role == 'assistant' &&
+        message.multiModelGroupId != null &&
+        allowMultiModelGrouping) {
+      for (int i = 0; i < index; i++) {
+        if (widget.messages[i].multiModelGroupId == message.multiModelGroupId) {
+          return const SizedBox.shrink();
+        }
+      }
+      return _buildMultiModelGroupItem(
+        context,
+        index: index,
+        isProcessingFiles: isProcessingFiles,
+      );
+    }
     final r = widget.reasoning[message.id];
     final t = widget.translations[message.id];
     final chatScale = context.watch<SettingsProvider>().chatFontScale;
@@ -647,6 +668,39 @@ class _MessageListViewState extends State<MessageListView> {
         );
       },
       child: messageColumn,
+    );
+  }
+
+  Widget _buildMultiModelGroupItem(
+    BuildContext context, {
+    required int index,
+    required bool isProcessingFiles,
+  }) {
+    final group = findMultiModelGroup(widget.messages, index);
+    if (group == null || group.isEmpty) return const SizedBox.shrink();
+
+    final layout =
+        group.first.multiModelLayout ?? ChatMultiModelLayout.defaultLayout;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: MultiModelGroupCard(
+        groupMessages: group,
+        groupLayout: layout,
+        onLayoutChanged: (newLayout) {
+          widget.onMultiModelLayoutChanged?.call(group, newLayout);
+        },
+        buildMessageCard: (msg, {bool compact = false}) {
+          final msgIndex = widget.messages.indexWhere((m) => m.id == msg.id);
+          if (msgIndex < 0) return const SizedBox.shrink();
+          return _buildMessageItem(
+            context,
+            index: msgIndex,
+            isProcessingFiles: isProcessingFiles,
+            allowMultiModelGrouping: false,
+          );
+        },
+      ),
     );
   }
 

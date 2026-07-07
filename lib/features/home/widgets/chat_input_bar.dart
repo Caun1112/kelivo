@@ -60,7 +60,9 @@ class ChatInputBar extends StatefulWidget {
     this.onLongPressMcp,
     this.onOpenSearch,
     this.onMore,
+    this.onMultiModel,
     this.onConfigureReasoning,
+    this.multiModelActive = false,
     this.moreOpen = false,
     this.focusNode,
     this.modelIcon,
@@ -96,6 +98,7 @@ class ChatInputBar extends StatefulWidget {
     this.onToggleOcr,
     this.conversationId,
     this.sendButtonTooltip,
+    this.selectedModels = const [],
     this.backgroundImageActive = false,
     this.inputBackgroundOpacityLight =
         SettingsProvider.defaultChatInputBackgroundOpacityLight,
@@ -111,7 +114,9 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onLongPressMcp;
   final VoidCallback? onOpenSearch;
   final VoidCallback? onMore;
+  final VoidCallback? onMultiModel;
   final VoidCallback? onConfigureReasoning;
+  final bool multiModelActive;
   final bool moreOpen;
   final FocusNode? focusNode;
   final Widget? modelIcon;
@@ -147,6 +152,7 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onToggleOcr;
   final String? conversationId;
   final String? sendButtonTooltip;
+  final List<ChatTargetModel> selectedModels;
   final bool backgroundImageActive;
   final double inputBackgroundOpacityLight;
   final double inputBackgroundOpacityDark;
@@ -1075,6 +1081,61 @@ class _ChatInputBarState extends State<ChatInputBar>
             }(),
           ),
         );
+
+        // 多模型按钮
+        if (widget.onMultiModel != null) {
+          actions.add(
+            _OverflowAction(
+              width: normalButtonW,
+              builder: () {
+                final count = widget.selectedModels.length;
+                return _CompactIconButton(
+                  tooltip: l10n.chatInputBarMultiModelTooltip,
+                  icon: Lucide.AtSign,
+                  active: widget.multiModelActive || count > 0,
+                  onTap: lockTap(widget.onMultiModel!),
+                  childBuilder: count > 0
+                      ? (c) => Stack(
+                          children: [
+                            Icon(Lucide.AtSign, size: 20, color: c),
+                            if (count > 1)
+                              Positioned(
+                                right: -4,
+                                top: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    '$count',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        )
+                      : null,
+                );
+              },
+              menu: DesktopContextMenuItem(
+                icon: Lucide.AtSign,
+                label: l10n.chatInputBarMultiModelTooltip,
+                onTap: lockTap(widget.onMultiModel!),
+              ),
+            ),
+          );
+        }
 
         if (widget.supportsReasoning) {
           actions.add(

@@ -3,6 +3,21 @@ import 'package:uuid/uuid.dart';
 
 part 'chat_message.g.dart';
 
+class ChatMultiModelLayout {
+  static const String vertical = 'vertical';
+  static const String horizontal = 'horizontal';
+  static const String grid = 'grid';
+  static const String defaultLayout = horizontal;
+
+  static bool isValid(String? value) {
+    return value == vertical || value == horizontal || value == grid;
+  }
+
+  static String normalize(String? value) {
+    return isValid(value) ? value! : defaultLayout;
+  }
+}
+
 @HiveType(typeId: 0)
 class ChatMessage extends HiveObject {
   @HiveField(0)
@@ -70,6 +85,12 @@ class ChatMessage extends HiveObject {
   @HiveField(19)
   final int? durationMs;
 
+  @HiveField(20)
+  final String? multiModelGroupId;
+
+  @HiveField(21)
+  final String? multiModelLayout;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -91,6 +112,8 @@ class ChatMessage extends HiveObject {
     this.completionTokens,
     this.cachedTokens,
     this.durationMs,
+    this.multiModelGroupId,
+    this.multiModelLayout,
   }) : id = id ?? const Uuid().v4(),
        timestamp = timestamp ?? DateTime.now(),
        groupId = groupId ?? id,
@@ -117,6 +140,8 @@ class ChatMessage extends HiveObject {
     int? completionTokens,
     int? cachedTokens,
     int? durationMs,
+    String? multiModelGroupId,
+    String? multiModelLayout,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -140,6 +165,8 @@ class ChatMessage extends HiveObject {
       completionTokens: completionTokens ?? this.completionTokens,
       cachedTokens: cachedTokens ?? this.cachedTokens,
       durationMs: durationMs ?? this.durationMs,
+      multiModelGroupId: multiModelGroupId ?? this.multiModelGroupId,
+      multiModelLayout: multiModelLayout ?? this.multiModelLayout,
     );
   }
 
@@ -165,6 +192,8 @@ class ChatMessage extends HiveObject {
       'completionTokens': completionTokens,
       'cachedTokens': cachedTokens,
       'durationMs': durationMs,
+      'multiModelGroupId': multiModelGroupId,
+      'multiModelLayout': multiModelLayout,
     };
   }
 
@@ -194,6 +223,8 @@ class ChatMessage extends HiveObject {
       completionTokens: json['completionTokens'] as int?,
       cachedTokens: json['cachedTokens'] as int?,
       durationMs: json['durationMs'] as int?,
+      multiModelGroupId: json['multiModelGroupId'] as String?,
+      multiModelLayout: json['multiModelLayout'] as String?,
     );
   }
 }
