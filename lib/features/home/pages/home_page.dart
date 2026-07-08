@@ -1298,6 +1298,7 @@ class _HomePageState extends State<HomePage>
       onCompressContext: _handleDesktopCompressContext,
       backgroundImageActive: _assistantBackgroundActive(context),
       selectedModels: _controller.targetModels,
+      onRemoveSelectedModel: _controller.removeTargetModel,
     );
   }
 

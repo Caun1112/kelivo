@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'package:Kelivo/features/chat/widgets/image_preview_sheet.dart';
+import 'package:Kelivo/l10n/app_localizations.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as image_lib;
 
@@ -176,6 +177,27 @@ void main() {
       expect(image.image, isA<MemoryImage>());
     },
   );
+
+  testWidgets('image preview action bar puts save before copy', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: Center(child: buildImagePreviewActionBarForTesting()),
+        ),
+      ),
+    );
+
+    final saveRect = tester.getRect(
+      find.byKey(const ValueKey('image-preview-save-button')),
+    );
+    final copyRect = tester.getRect(
+      find.byKey(const ValueKey('image-preview-copy-button')),
+    );
+
+    expect(saveRect.left, lessThan(copyRect.left));
+  });
 
   test('saving preview preserves the original PNG file', () async {
     final file = await _writePng(width: 32, height: 96);

@@ -203,6 +203,11 @@ class HomePageController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void removeTargetModel(ChatTargetModel model) {
+    final removed = _targetModels.remove(model);
+    if (removed) notifyListeners();
+  }
+
   void clearTargetModels() {
     if (_targetModels.isNotEmpty) {
       _targetModels.clear();

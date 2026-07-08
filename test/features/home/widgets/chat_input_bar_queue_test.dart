@@ -32,6 +32,8 @@ void main() {
     bool backgroundImageActive = false,
     double inputBackgroundOpacityLight = 0.8236,
     double inputBackgroundOpacityDark = 0.7396,
+    List<ChatTargetModel> selectedModels = const [],
+    ValueChanged<ChatTargetModel>? onRemoveSelectedModel,
   }) {
     return MultiProvider(
       providers: [
@@ -65,6 +67,8 @@ void main() {
             backgroundImageActive: backgroundImageActive,
             inputBackgroundOpacityLight: inputBackgroundOpacityLight,
             inputBackgroundOpacityDark: inputBackgroundOpacityDark,
+            selectedModels: selectedModels,
+            onRemoveSelectedModel: onRemoveSelectedModel,
           ),
         ),
       ),
@@ -421,6 +425,61 @@ void main() {
 
     final decoration = _mainInputDecoration(tester);
     expect(decoration.color?.a, closeTo(0.545, 0.0001));
+
+    controller.dispose();
+    focusNode.dispose();
+  });
+
+  testWidgets('多模型标签显示在输入框上方并可移除', (tester) async {
+    final controller = TextEditingController();
+    final focusNode = FocusNode();
+    final settings = SettingsProvider();
+    await settings.setProviderConfig(
+      'OpenAITest',
+      ProviderConfig(
+        id: 'OpenAITest',
+        enabled: true,
+        name: 'OpenAITest',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.com/v1',
+        providerType: ProviderKind.openai,
+        models: const ['gpt-5.5'],
+        modelOverrides: const {
+          'gpt-5.5': {'name': 'GPT-5.5'},
+        },
+      ),
+    );
+    const target = ChatTargetModel(
+      providerKey: 'OpenAITest',
+      modelId: 'gpt-5.5',
+    );
+    ChatTargetModel? removed;
+
+    await tester.pumpWidget(
+      buildHarness(
+        controller: controller,
+        focusNode: focusNode,
+        settingsProvider: settings,
+        selectedModels: const [target],
+        onRemoveSelectedModel: (model) => removed = model,
+        onSend: (_) async => ChatInputSubmissionResult.rejected,
+      ),
+    );
+
+    final barFinder = find.byKey(
+      const ValueKey('chat-input-selected-models-bar'),
+    );
+    expect(barFinder, findsOneWidget);
+    expect(find.text('@GPT-5.5'), findsOneWidget);
+
+    final inputRect = tester.getRect(_mainInputSurfaceFinder());
+    final barRect = tester.getRect(barFinder);
+    expect(barRect.bottom, lessThan(inputRect.top));
+
+    await tester.tap(find.byIcon(Lucide.X));
+    await tester.pump();
+
+    expect(removed, target);
 
     controller.dispose();
     focusNode.dispose();

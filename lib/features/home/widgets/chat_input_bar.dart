@@ -99,6 +99,7 @@ class ChatInputBar extends StatefulWidget {
     this.conversationId,
     this.sendButtonTooltip,
     this.selectedModels = const [],
+    this.onRemoveSelectedModel,
     this.backgroundImageActive = false,
     this.inputBackgroundOpacityLight =
         SettingsProvider.defaultChatInputBackgroundOpacityLight,
@@ -153,6 +154,7 @@ class ChatInputBar extends StatefulWidget {
   final String? conversationId;
   final String? sendButtonTooltip;
   final List<ChatTargetModel> selectedModels;
+  final ValueChanged<ChatTargetModel>? onRemoveSelectedModel;
   final bool backgroundImageActive;
   final double inputBackgroundOpacityLight;
   final double inputBackgroundOpacityDark;
@@ -257,6 +259,22 @@ class _ChatInputBarState extends State<ChatInputBar>
 
   // Instance method for onChanged to avoid recreating the callback on every build
   void _onTextChanged(String _) => setState(() {});
+
+  String _selectedModelLabel(SettingsProvider settings, ChatTargetModel model) {
+    try {
+      final cfg = settings.getProviderConfig(model.providerKey);
+      final raw = cfg.modelOverrides[model.modelId];
+      if (raw is Map) {
+        final name = (raw['name'] as String?)?.trim();
+        if (name != null && name.isNotEmpty) return name;
+        final apiId = (raw['apiModelId'] ?? raw['api_model_id'])
+            ?.toString()
+            .trim();
+        if (apiId != null && apiId.isNotEmpty) return apiId;
+      }
+    } catch (_) {}
+    return model.modelId;
+  }
 
   void _addImages(List<String> paths) {
     if (paths.isEmpty) return;
@@ -1087,47 +1105,13 @@ class _ChatInputBarState extends State<ChatInputBar>
           actions.add(
             _OverflowAction(
               width: normalButtonW,
-              builder: () {
-                final count = widget.selectedModels.length;
-                return _CompactIconButton(
-                  tooltip: l10n.chatInputBarMultiModelTooltip,
-                  icon: Lucide.AtSign,
-                  active: widget.multiModelActive || count > 0,
-                  onTap: lockTap(widget.onMultiModel!),
-                  childBuilder: count > 0
-                      ? (c) => Stack(
-                          children: [
-                            Icon(Lucide.AtSign, size: 20, color: c),
-                            if (count > 1)
-                              Positioned(
-                                right: -4,
-                                top: -4,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 3,
-                                    vertical: 1,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    '$count',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        )
-                      : null,
-                );
-              },
+              builder: () => _CompactIconButton(
+                tooltip: l10n.chatInputBarMultiModelTooltip,
+                icon: Lucide.AtSign,
+                active:
+                    widget.multiModelActive || widget.selectedModels.isNotEmpty,
+                onTap: lockTap(widget.onMultiModel!),
+              ),
               menu: DesktopContextMenuItem(
                 icon: Lucide.AtSign,
                 label: l10n.chatInputBarMultiModelTooltip,
@@ -1792,6 +1776,17 @@ class _ChatInputBarState extends State<ChatInputBar>
               ),
               const SizedBox(height: AppSpacing.xs),
             ],
+            if (widget.selectedModels.isNotEmpty) ...[
+              _SelectedModelsBar(
+                models: widget.selectedModels,
+                labelForModel: (model) => _selectedModelLabel(
+                  context.watch<SettingsProvider>(),
+                  model,
+                ),
+                onRemove: _composerLocked ? null : widget.onRemoveSelectedModel,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+            ],
             Stack(
               clipBehavior: Clip.none,
               children: [
@@ -2190,6 +2185,109 @@ class _QueuedInputBanner extends StatelessWidget {
                 color: theme.colorScheme.primary,
                 fontWeight: AppFontWeights.semibold,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SelectedModelsBar extends StatelessWidget {
+  const _SelectedModelsBar({
+    required this.models,
+    required this.labelForModel,
+    this.onRemove,
+  });
+
+  final List<ChatTargetModel> models;
+  final String Function(ChatTargetModel model) labelForModel;
+  final ValueChanged<ChatTargetModel>? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      key: const ValueKey('chat-input-selected-models-bar'),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.07)
+            : cs.surface.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.18)),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: AppSpacing.xxs,
+      ),
+      child: Wrap(
+        spacing: AppSpacing.xxs,
+        runSpacing: AppSpacing.xxs,
+        children: [
+          for (final model in models)
+            _SelectedModelChip(
+              key: ValueKey('chat-input-selected-model:${model.key}'),
+              label: '@${labelForModel(model)}',
+              closeTooltip: AppLocalizations.of(context)!.mcpPageClose,
+              onRemove: onRemove == null ? null : () => onRemove!(model),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SelectedModelChip extends StatelessWidget {
+  const _SelectedModelChip({
+    super.key,
+    required this.label,
+    required this.closeTooltip,
+    this.onRemove,
+  });
+
+  final String label;
+  final String closeTooltip;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 30),
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.18)),
+      ),
+      padding: const EdgeInsetsDirectional.only(start: 10, end: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.primary,
+                fontSize: 13,
+                fontWeight: AppFontWeights.semibold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 2),
+          Tooltip(
+            message: closeTooltip,
+            child: IosIconButton(
+              icon: Lucide.X,
+              size: 14,
+              padding: const EdgeInsets.all(5),
+              color: cs.primary.withValues(alpha: 0.78),
+              onTap: onRemove,
             ),
           ),
         ],

@@ -1087,7 +1087,6 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
     return DraggableScrollableSheet(
       controller: _ctrl,
       expand: false,
@@ -1161,180 +1160,204 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
               bottom: 0,
               child: SafeArea(
                 top: false,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: cs.surface,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 16,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                  child: Row(
-                    children: [
-                      // Left small square share button (no ripple)
-                      Builder(
-                        builder: (btnCtx) => SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: IosCardPress(
-                            onTap: () => _onShare(btnCtx),
-                            borderRadius: BorderRadius.circular(12),
-                            baseColor: cs.surface,
-                            pressedBlendStrength:
-                                Theme.of(context).brightness == Brightness.dark
-                                ? 0.14
-                                : 0.10,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: cs.outline.withValues(alpha: 0.25),
-                                ),
-                              ),
-                              child: Center(
-                                child: Icon(
-                                  Lucide.MoreVertical,
-                                  color: cs.onSurface.withValues(alpha: 0.9),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Copy image button
-                      Expanded(
-                        child: SizedBox(
-                          height: 48,
-                          child: IosCardPress(
-                            onTap: _copying ? null : _onCopy,
-                            borderRadius: BorderRadius.circular(12),
-                            baseColor: cs.onSurface.withValues(alpha: 0.06),
-                            pressedBlendStrength:
-                                Theme.of(context).brightness == Brightness.dark
-                                ? 0.14
-                                : 0.10,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: cs.outline.withValues(alpha: 0.18),
-                                ),
-                              ),
-                              child: Center(
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 180),
-                                  child: _copying
-                                      ? const SizedBox(
-                                          key: ValueKey('copying'),
-                                          width: 18,
-                                          height: 18,
-                                          child: CupertinoActivityIndicator(
-                                            radius: 9,
-                                          ),
-                                        )
-                                      : Row(
-                                          key: const ValueKey('copy-ready'),
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Lucide.Clipboard,
-                                              color: cs.onSurface.withValues(
-                                                alpha: 0.88,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Flexible(
-                                              child: Text(
-                                                l10n.imageViewerPageCopyButton,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: cs.onSurface
-                                                      .withValues(alpha: 0.88),
-                                                  fontWeight:
-                                                      AppFontWeights.semibold,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Save image button
-                      Expanded(
-                        child: SizedBox(
-                          height: 48,
-                          child: IosCardPress(
-                            onTap: _saving ? null : _onSave,
-                            borderRadius: BorderRadius.circular(12),
-                            baseColor: cs.primary,
-                            pressedBlendStrength:
-                                Theme.of(context).brightness == Brightness.dark
-                                ? 0.14
-                                : 0.12,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 180),
-                                  child: _saving
-                                      ? const SizedBox(
-                                          key: ValueKey('saving'),
-                                          width: 18,
-                                          height: 18,
-                                          child: CupertinoActivityIndicator(
-                                            radius: 9,
-                                          ),
-                                        )
-                                      : Row(
-                                          key: const ValueKey('ready'),
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Lucide.Download,
-                                              color: cs.onPrimary,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              l10n.imagePreviewSheetSaveImage,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: cs.onPrimary,
-                                                fontWeight:
-                                                    AppFontWeights.semibold,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                child: _ImagePreviewActionBar(
+                  saving: _saving,
+                  copying: _copying,
+                  onShare: _onShare,
+                  onSave: _onSave,
+                  onCopy: _onCopy,
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+Widget buildImagePreviewActionBarForTesting({
+  VoidCallback? onSave,
+  VoidCallback? onCopy,
+}) {
+  return _ImagePreviewActionBar(
+    saving: false,
+    copying: false,
+    onShare: (_) {},
+    onSave: onSave ?? () {},
+    onCopy: onCopy ?? () {},
+  );
+}
+
+class _ImagePreviewActionBar extends StatelessWidget {
+  const _ImagePreviewActionBar({
+    required this.saving,
+    required this.copying,
+    required this.onShare,
+    required this.onSave,
+    required this.onCopy,
+  });
+
+  final bool saving;
+  final bool copying;
+  final ValueChanged<BuildContext> onShare;
+  final VoidCallback? onSave;
+  final VoidCallback? onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Row(
+        children: [
+          Builder(
+            builder: (btnCtx) => SizedBox(
+              width: 48,
+              height: 48,
+              child: IosCardPress(
+                onTap: () => onShare(btnCtx),
+                borderRadius: BorderRadius.circular(12),
+                baseColor: cs.surface,
+                pressedBlendStrength: isDark ? 0.14 : 0.10,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: cs.outline.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Lucide.MoreVertical,
+                      color: cs.onSurface.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: SizedBox(
+              key: const ValueKey('image-preview-save-button'),
+              height: 48,
+              child: IosCardPress(
+                onTap: saving ? null : onSave,
+                borderRadius: BorderRadius.circular(12),
+                baseColor: cs.primary,
+                pressedBlendStrength: isDark ? 0.14 : 0.12,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: saving
+                          ? const SizedBox(
+                              key: ValueKey('saving'),
+                              width: 18,
+                              height: 18,
+                              child: CupertinoActivityIndicator(radius: 9),
+                            )
+                          : Row(
+                              key: const ValueKey('ready'),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Lucide.Download, color: cs.onPrimary),
+                                const SizedBox(width: 8),
+                                Text(
+                                  l10n.imagePreviewSheetSaveImage,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: cs.onPrimary,
+                                    fontWeight: AppFontWeights.semibold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SizedBox(
+              key: const ValueKey('image-preview-copy-button'),
+              height: 48,
+              child: IosCardPress(
+                onTap: copying ? null : onCopy,
+                borderRadius: BorderRadius.circular(12),
+                baseColor: cs.onSurface.withValues(alpha: 0.06),
+                pressedBlendStrength: isDark ? 0.14 : 0.10,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: cs.outline.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  child: Center(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: copying
+                          ? const SizedBox(
+                              key: ValueKey('copying'),
+                              width: 18,
+                              height: 18,
+                              child: CupertinoActivityIndicator(radius: 9),
+                            )
+                          : Row(
+                              key: const ValueKey('copy-ready'),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Lucide.Clipboard,
+                                  color: cs.onSurface.withValues(alpha: 0.88),
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    l10n.imageViewerPageCopyButton,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: cs.onSurface.withValues(
+                                        alpha: 0.88,
+                                      ),
+                                      fontWeight: AppFontWeights.semibold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -69,6 +69,7 @@ class ChatInputSection extends StatelessWidget {
     this.sendButtonTooltip,
     this.backgroundImageActive = false,
     this.selectedModels = const [],
+    this.onRemoveSelectedModel,
   });
 
   final GlobalKey inputBarKey;
@@ -114,6 +115,7 @@ class ChatInputSection extends StatelessWidget {
   final String? sendButtonTooltip;
   final bool backgroundImageActive;
   final List<ChatTargetModel> selectedModels;
+  final ValueChanged<ChatTargetModel>? onRemoveSelectedModel;
 
   @override
   Widget build(BuildContext context) {
@@ -219,6 +221,7 @@ class ChatInputSection extends StatelessWidget {
       inputBackgroundOpacityLight: settings.chatInputBackgroundOpacityLight,
       inputBackgroundOpacityDark: settings.chatInputBackgroundOpacityDark,
       selectedModels: selectedModels,
+      onRemoveSelectedModel: onRemoveSelectedModel,
     );
   }
 
